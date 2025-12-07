@@ -572,8 +572,12 @@ const calculatePillarsFromDate = (dateStr, timeStr, gender) => {
 
 // --- AI Interpretation Feature ---
 // Function to call Gemini API
+// Function to call Gemini API
 const generateGeminiInterpretation = async (pillars, gender, lunarDate) => {
-  const apiKey = "AIzaSyAsM7weol57L4JwfUDdtp56QZr1_DDpifA"; // Injected by environment
+  const apiKey = import.meta.env.VITE_API_KEY;
+  if (!apiKey) {
+    return "⚠️ API Key missing. Please set VITE_API_KEY in your .env file.";
+  }
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
 
   const pillarText = pillars.map((p, i) => {
@@ -675,10 +679,10 @@ const OnePalmApp = () => {
   };
 
   const handleGuideAi = async (item) => {
-    setActiveGuideAi({ loading: true, content: null });
+    setActiveGuideAi({ loading: true, content: null, item });
     // Pass guide gender explicitly
     const analysis = await generateGeminiInterpretation(item.pillarObjects, guideGender, item.lunarDetail);
-    setActiveGuideAi({ loading: false, content: analysis });
+    setActiveGuideAi({ loading: false, content: analysis, item });
   };
 
   const handlePrint = () => {
@@ -1398,87 +1402,282 @@ const OnePalmApp = () => {
         </div>
       </div>
 
-      {/* --- PRINT LAYOUT (Retained from previous) --- */}
-      {result && (
-        <div className="print-only font-serif text-black p-0 bg-white">
-          <div className="text-center border-b-2 border-black pb-4 mb-6">
-            <h1 className="text-3xl font-bold mb-2">达摩一掌经 · 命理分析报告</h1>
-            <div className="flex justify-center gap-6 text-sm">
-              <span>公历：{birthDate} {birthTime}</span>
-              <span>农历：{result.lunar.year} {result.lunar.month} {result.lunar.day} {result.lunar.time}</span>
-              <span>性别：{gender === 'male' ? '男' : '女'}</span>
+      {/* --- PRINT LAYOUT --- */}
+      <div className="print-only font-serif text-black bg-white p-8 max-w-4xl mx-auto">
+        {mode === 'analysis' && result && (
+          <div>
+            {/* Header */}
+            <div className="text-center border-b-2 border-stone-800 pb-6 mb-8">
+              <h1 className="text-4xl font-bold mb-3 tracking-widest text-stone-900">达摩一掌经 · 命理分析报告</h1>
+              <div className="flex justify-center flex-wrap gap-8 text-sm font-medium text-stone-600">
+                <span className="flex items-center gap-1"><Calendar size={14} /> 公历：{birthDate} {birthTime}</span>
+                <span className="flex items-center gap-1"><Moon size={14} /> 农历：{result.lunar.year} {result.lunar.month} {result.lunar.day} {result.lunar.time}</span>
+                <span className="flex items-center gap-1"><User size={14} /> 性别：{gender === 'male' ? '男' : '女'}</span>
+              </div>
             </div>
-          </div>
-          <div className="flex flex-row gap-6 mb-8 border-b border-stone-300 pb-6">
-            <div className="w-1/3">
-              <HandGrid activePositions={result.pillars.map((p, i) => ({ pos: p.pos, label: ['年', '月', '日', '时'][i] }))} printMode={true} />
-              <div className="grid grid-cols-2 gap-2 mt-4">
+
+            {/* Top Section: Chart & Summary */}
+            <div className="flex flex-col md:flex-row gap-8 mb-8">
+              {/* Left: Hand Chart */}
+              <div className="w-full md:w-1/3 flex flex-col items-center">
+                <HandGrid activePositions={result.pillars.map((p, i) => ({ pos: p.pos, label: ['年', '月', '日', '时'][i] }))} printMode={true} />
+
+                <div className="w-full mt-4 space-y-2">
+                  <div className="flex justify-between text-xs border-b border-stone-200 pb-1"><span>时分三刻</span><span className="font-bold">{result.advanced.timeSub.label}</span></div>
+                  <div className="flex justify-between text-xs border-b border-stone-200 pb-1"><span>年月逢识</span><span className="font-bold">{result.advanced.shi.name}</span></div>
+                  <div className="flex justify-between text-xs border-b border-stone-200 pb-1"><span>日遇吉凶</span><span className="font-bold">{result.advanced.dayStar.name}</span></div>
+                </div>
+              </div>
+
+              {/* Right: Pillars & Fate */}
+              <div className="w-full md:w-2/3 flex flex-col gap-6">
+                {/* 4 Pillars Summary Grid */}
+                <div className="grid grid-cols-4 gap-2">
+                  {result.pillars.map((p, i) => (
+                    <div key={i} className="border border-stone-800 rounded-lg p-3 text-center flex flex-col justify-between h-24">
+                      <span className="text-xs font-bold text-stone-500 uppercase tracking-widest">{p.title}</span>
+                      <span className="text-xl font-bold text-stone-900">{p.data.name}</span>
+                      <span className="text-xs bg-stone-100 text-stone-600 px-1 py-0.5 rounded mx-auto">{p.data.realm.name}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Overall Fate */}
+                <div className="flex-grow border-t border-b border-stone-200 py-4 flex flex-col justify-center">
+                  <h3 className="font-bold text-lg mb-2 flex items-center gap-2"><Sparkles size={16} /> 命格总评</h3>
+                  <p className="text-sm leading-7 text-justify text-stone-700">{result.analysis.overallFate}</p>
+                  {result.analysis.overallAdvice && (
+                    <div className="mt-4 bg-stone-50 p-3 rounded text-sm text-stone-600 border border-stone-200">
+                      <strong className="text-stone-800">💡 重点提示：</strong> {result.analysis.overallAdvice}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Life Timeline */}
+            <div className="break-inside-avoid mb-8 border border-stone-200 rounded-xl p-6">
+              <h3 className="font-bold text-lg mb-6 border-l-4 border-stone-800 pl-3 flex items-center gap-2">人生流年轨迹</h3>
+              <div className="grid grid-cols-2 gap-x-8 gap-y-6">
                 {result.pillars.map((p, i) => (
-                  <div key={i} className="border border-black p-2 text-center rounded">
-                    <div className="text-[10px] font-bold">{p.title.split(' ')[0]}</div>
-                    <div className="font-bold text-lg my-1">{p.data.name}</div>
-                    <div className="text-[10px]">{p.data.realm.name}</div>
+                  <div key={i} className="break-inside-avoid relative pl-4 border-l-2 border-stone-300">
+                    <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-stone-800 border-2 border-white"></div>
+                    <div className="flex items-baseline justify-between mb-2">
+                      <span className="font-bold text-base text-stone-800">{p.data.name} <span className="text-sm font-normal text-stone-500">({p.title})</span></span>
+                      <span className="text-xs font-bold bg-stone-100 px-2 py-0.5 rounded">{p.age}</span>
+                    </div>
+                    <p className="text-xs text-stone-600 leading-relaxed text-justify">{p.specific_analysis}</p>
                   </div>
                 ))}
               </div>
             </div>
-            <div className="w-2/3 flex flex-col justify-center">
-              <h3 className="font-bold text-lg mb-2">命格总评</h3>
-              <p className="text-sm leading-relaxed mb-4">{result.analysis.overallFate}</p>
-              {result.analysis.overallAdvice && (
-                <div className="bg-stone-50 border border-stone-200 p-3 rounded mb-4 text-sm">
-                  <strong>重点提示：</strong> {result.analysis.overallAdvice}
+
+            {/* Detailed Pillars Analysis */}
+            <div className="break-inside-avoid mb-8">
+              <h3 className="font-bold text-lg mb-4 border-l-4 border-stone-800 pl-3 flex items-center gap-2">四柱详解</h3>
+              <div className="grid grid-cols-2 gap-6">
+                {result.pillars.map((p, i) => (
+                  <div key={i} className="break-inside-avoid border border-stone-300 rounded-lg p-4 bg-stone-50/50">
+                    <div className="flex justify-between items-baseline mb-2 border-b border-stone-200 pb-1">
+                      <h4 className="font-bold text-stone-900">{p.data.name} <span className="text-xs font-normal text-stone-500">({p.title})</span></h4>
+                      <span className="text-xs font-bold bg-white border border-stone-200 px-2 rounded-full text-stone-600">{p.data.realm.trait}</span>
+                    </div>
+                    <p className="text-xs italic text-stone-500 font-serif mb-3 leading-relaxed">“{p.data.poem}”</p>
+                    <div className="space-y-2">
+                      <p className="text-xs text-stone-700"><strong><Scroll size={10} className="inline mr-1" />本义：</strong>{p.data.general_analysis}</p>
+                      <p className="text-xs text-stone-700"><strong><MapPin size={10} className="inline mr-1" />落宫：</strong>{p.specific_analysis}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Advice & Special Findings */}
+            <div className="grid grid-cols-2 gap-8 mb-8 break-inside-avoid">
+              <div className="border border-stone-200 rounded-xl p-6">
+                <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><Heart size={16} /> 人生建议</h3>
+                <div className="space-y-3 text-sm text-stone-700">
+                  <p><strong className="text-stone-900">❤️ 择偶：</strong>{result.analysis.lifeAdvice.loveAdvice}</p>
+                  <p><strong className="text-stone-900">🤝 交友：</strong>{result.analysis.lifeAdvice.friendAdvice}</p>
+                  <p><strong className="text-stone-900">🌸 修养：</strong>{result.analysis.lifeAdvice.coreAdvice}</p>
+                </div>
+              </div>
+              <div className="border border-stone-200 rounded-xl p-6">
+                <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><Star size={16} /> 特殊断语</h3>
+                {(result.analysis.fanZhongFindings.length > 0 || result.analysis.interactionFindings.length > 0) ? (
+                  <ul className="text-xs flex flex-col gap-2">
+                    {result.analysis.fanZhongFindings.map((f, i) => (<li key={`fz-${i}`} className="bg-stone-50 p-1.5 rounded"><strong>[犯重] {f.star}:</strong> {f.desc}</li>))}
+                    {result.analysis.interactionFindings.map((f, i) => (<li key={`in-${i}`} className="bg-stone-50 p-1.5 rounded"><strong>[{f.title}]</strong> {f.desc}</li>))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-stone-500 italic">命盘格局平稳，无特殊冲克或吉格。</p>
+                )}
+              </div>
+            </div>
+
+            {/* AI Interpretation Section */}
+            <div className="break-inside-avoid border-2 border-dashed border-stone-300 rounded-xl p-8 min-h-[300px]">
+              <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-stone-800">
+                <Bot size={20} /> AI 大师深度解盘
+              </h3>
+              {aiAnalysis ? (
+                <div className="prose prose-sm max-w-none text-stone-700 leading-relaxed whitespace-pre-wrap columns-1">
+                  {aiAnalysis}
+                </div>
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center text-stone-400 opacity-50 space-y-2">
+                  <div className="text-4xl">✨</div>
+                  <p className="text-sm font-medium uppercase tracking-widest center">此处预留大师批注</p>
+                  <p className="text-xs">（请在屏幕上点击“AI大师深度解盘”生成内容后打印）</p>
                 </div>
               )}
-              <div className="grid grid-cols-3 gap-2 text-xs">
-                <div className="border p-2 rounded"><strong>时分:</strong> {result.advanced.timeSub.label}</div>
-                <div className="border p-2 rounded"><strong>识神:</strong> {result.advanced.shi.name}</div>
-                <div className="border p-2 rounded"><strong>日星:</strong> {result.advanced.dayStar.name}</div>
-              </div>
             </div>
           </div>
-          <div className="mb-8 break-inside-avoid">
-            <h3 className="font-bold text-lg mb-4 border-l-4 border-black pl-3">四柱详解</h3>
-            <div className="grid grid-cols-2 gap-6">
-              {result.pillars.map((p, i) => (
-                <div key={i} className="break-inside-avoid border border-stone-300 rounded p-4">
-                  <div className="flex justify-between items-baseline mb-2 border-b border-stone-200 pb-1">
-                    <h4 className="font-bold">{p.data.name} <span className="text-xs font-normal">({p.title})</span></h4>
-                    <span className="text-xs bg-stone-100 px-1 rounded">{p.data.realm.trait}</span>
-                  </div>
-                  <p className="text-xs italic mb-2">“{p.data.poem}”</p>
-                  <p className="text-xs mb-2"><strong>本义：</strong>{p.data.general_analysis}</p>
-                  <p className="text-xs"><strong>落宫：</strong>{p.specific_analysis}</p>
+        )}
+
+        {mode === 'relation' && relationResult && (
+          <div>
+            <div className="text-center border-b-2 border-stone-800 pb-6 mb-8">
+              <h1 className="text-4xl font-bold mb-3 tracking-widest text-stone-900">达摩一掌经 · 人际合盘报告</h1>
+              <div className="flex justify-center gap-8 text-sm font-medium text-stone-600">
+                <span className="flex items-center gap-1"><User size={14} /> 主体：我 ({result.lunar.year})</span>
+                <span className="flex items-center gap-1"><GitMerge size={14} /> 关系对象：{relName} ({relType === 'partner' ? '伴侣' : relType === 'colleague' ? '事业' : relType === 'friend' ? '朋友' : '家人'})</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-12 mb-8">
+              {/* My Chart */}
+              <div className="border border-stone-200 rounded-xl p-6">
+                <h3 className="font-bold text-center border-b border-stone-100 pb-2 mb-4">我的命盘</h3>
+                <div className="grid grid-cols-2 gap-2">
+                  {result.pillars.map((p, i) => (
+                    <div key={i} className="text-center p-2 bg-stone-50 rounded">
+                      <div className="text-xs text-stone-400">{['年', '月', '日', '时'][i]}</div>
+                      <div className="font-bold text-lg">{p.data.name}</div>
+                      <div className="text-xs">{p.data.realm.name}</div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-6 mb-6">
-            <div className="break-inside-avoid">
-              <h3 className="font-bold text-lg mb-3 border-l-4 border-black pl-3">人生建议</h3>
-              <div className="text-sm space-y-2">
-                <p><strong><Heart size={12} className="inline mr-1" />择偶：</strong>{result.analysis.lifeAdvice.loveAdvice}</p>
-                <p><strong><Users size={12} className="inline mr-1" />交友：</strong>{result.analysis.lifeAdvice.friendAdvice}</p>
-                <p><strong><Flower size={12} className="inline mr-1" />修养：</strong>{result.analysis.lifeAdvice.coreAdvice}</p>
+              </div>
+              {/* Target Chart */}
+              <div className="border border-stone-200 rounded-xl p-6">
+                <h3 className="font-bold text-center border-b border-stone-100 pb-2 mb-4">{relName} ({relGender === 'male' ? '男' : '女'})</h3>
+                <div className="grid grid-cols-2 gap-2">
+                  {relationResult.target.pillars.map((p, i) => (
+                    <div key={i} className="text-center p-2 bg-stone-50 rounded">
+                      <div className="text-xs text-stone-400">{['年', '月', '日', '时'][i]}</div>
+                      <div className="font-bold text-lg">{p.data.name}</div>
+                      <div className="text-xs">{p.data.realm.name}</div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
-            {(result.analysis.fanZhongFindings.length > 0 || result.analysis.interactionFindings.length > 0) && (
-              <div className="break-inside-avoid">
-                <h3 className="font-bold text-lg mb-3 border-l-4 border-black pl-3">特殊断语</h3>
-                <ul className="text-xs list-disc list-inside space-y-1">
-                  {result.analysis.fanZhongFindings.map((f, i) => (<li key={`fz-${i}`}>{f.desc}</li>))}
-                  {result.analysis.interactionFindings.map((f, i) => (<li key={`in-${i}`}><strong>{f.title}:</strong> {f.desc}</li>))}
-                </ul>
+
+            <div className="space-y-6 break-inside-avoid">
+              <div className={`p-6 rounded-xl border-l-4 ${relationResult.analysis.isHarm ? 'border-red-500 bg-red-50' : 'border-emerald-500 bg-emerald-50'}`}>
+                <h3 className="font-bold text-lg mb-2">1. 生肖根基判定</h3>
+                <p className="text-stone-800">{relationResult.analysis.isHarm ? '⚠️ ' : '✅ '}{relationResult.analysis.harmDesc}</p>
+              </div>
+
+              <div className="p-6 rounded-xl border border-stone-200 bg-white">
+                <h3 className="font-bold text-lg mb-4">2. 能量互补分析</h3>
+                {relationResult.analysis.complements.length > 0 ? (
+                  <ul className="list-disc list-inside space-y-2 text-stone-700">
+                    {relationResult.analysis.complements.map((c, i) => <li key={i}>{c}</li>)}
+                  </ul>
+                ) : <p className="text-stone-500 italic">双方命盘较为独立，无显著互补结构。</p>}
+              </div>
+
+              <div className="p-6 rounded-xl border border-stone-200 bg-purple-50">
+                <h3 className="font-bold text-lg mb-2 text-purple-900">3. 深度影响评估</h3>
+                <p className="text-xl font-bold text-purple-800 mb-2">{relationResult.analysis.influenceType}</p>
+                <p className="text-sm text-purple-600">影响指数: {relationResult.analysis.influenceScore}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {mode === 'guide' && (
+          <div>
+            <div className="text-center border-b-2 border-stone-800 pb-6 mb-8">
+              <h1 className="text-4xl font-bold mb-3 tracking-widest text-stone-900">达摩一掌经 · 出生择吉报告</h1>
+              <div className="text-sm font-medium text-stone-600">
+                目标日期: {guideDueDate} · {guideGender === 'male' ? '男宝' : '女宝'}
+              </div>
+            </div>
+
+            {activeGuideAi && activeGuideAi.item ? (
+              // Specific Selection Detail
+              <div className="space-y-8">
+                <div className="bg-stone-50 border border-stone-200 p-6 rounded-xl text-center">
+                  <h2 className="text-2xl font-bold text-stone-900 mb-2">{activeGuideAi.item.dateStr}</h2>
+                  <p className="text-stone-600 font-mono mb-4">{activeGuideAi.item.lunarStr} · {activeGuideAi.item.timeLabel}</p>
+
+                  <div className="grid grid-cols-4 gap-4 max-w-lg mx-auto">
+                    <div className="p-3 bg-white rounded border border-stone-200">
+                      <span className="block text-xs text-stone-400">年</span>
+                      <span className="font-bold text-lg">{activeGuideAi.item.pillars[0]}</span>
+                    </div>
+                    <div className="p-3 bg-white rounded border border-stone-200">
+                      <span className="block text-xs text-stone-400">月</span>
+                      <span className="font-bold text-lg">{activeGuideAi.item.pillars[1]}</span>
+                    </div>
+                    <div className="p-3 bg-white rounded border border-stone-200">
+                      <span className="block text-xs text-stone-400">日</span>
+                      <span className="font-bold text-lg">{activeGuideAi.item.pillars[2]}</span>
+                    </div>
+                    <div className="p-3 bg-teal-50 rounded border border-teal-200">
+                      <span className="block text-xs text-teal-600">时</span>
+                      <span className="font-bold text-lg text-teal-900">{activeGuideAi.item.pillars[3]}</span>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex justify-center gap-2">
+                    <span className="bg-stone-800 text-white px-3 py-1 rounded-full text-sm font-bold">综合得分: {activeGuideAi.item.score}</span>
+                    {activeGuideAi.item.score >= 6 && <span className="bg-amber-100 text-amber-800 px-3 py-1 rounded-full text-sm font-bold">上等命格</span>}
+                  </div>
+                </div>
+
+                <div className="border-t border-stone-200 pt-8">
+                  <h3 className="font-bold text-xl mb-6 flex items-center gap-2"><Bot size={24} /> 大师深度解盘</h3>
+                  <div className="prose prose-stone max-w-none leading-loose">
+                    {activeGuideAi.content ? activeGuideAi.content : '（解析内容生成中...）'}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              // List View
+              <div className="space-y-6">
+                <p className="text-stone-500 italic text-center text-sm">（建议点击具体吉日的“大师详解”按钮后，打印该日期的深度报告）</p>
+                <div className="grid grid-cols-2 gap-4">
+                  {guideResults.slice(0, 12).map((res, i) => (
+                    <div key={i} className="border border-stone-200 p-4 rounded-lg break-inside-avoid">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <div className="font-bold text-lg">{res.dateStr}</div>
+                          <div className="text-xs text-stone-500">{res.lunarStr} · {res.timeLabel}</div>
+                        </div>
+                        <div className="font-bold text-xl text-stone-800">{res.score}分</div>
+                      </div>
+                      <div className="text-sm space-y-1 bg-stone-50 p-2 rounded">
+                        <div className="flex justify-between"><span>年: {res.pillars[0]}</span><span>月: {res.pillars[1]}</span></div>
+                        <div className="flex justify-between"><span>日: {res.pillars[2]}</span><span className="font-bold">时: {res.pillars[3]}</span></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
-          <div className="text-center text-[10px] text-stone-400 mt-8 pt-4 border-t border-stone-200">
-            达摩一掌经排盘系统 · 仅供娱乐参考
-          </div>
+        )}
+
+        <div className="text-center text-[10px] text-stone-400 mt-12 mb-4 border-t border-stone-200 pt-4">
+          达摩一掌经排盘系统 · 仅供娱乐参考 · 命自我立
         </div>
-      )}
+      </div>
     </>
   );
 };
+
 
 export default OnePalmApp;
